@@ -1,0 +1,160 @@
+// ============================
+// Human Following Robot (L298N)
+// Pins fixed exactly as user requested
+// ============================
+
+// ---- IR Sensors ----
+#define IR_RIGHT 2
+#define IR_LEFT 3
+
+// ---- Ultrasonic ----
+#define TRIG 11
+#define ECHO 12
+
+// ---- Motor Driver L298N ----
+#define ENA 5    // Right Motor speed
+#define ENB 6    // Left Motor speed
+#define IN1 7    // Right Motor +
+#define IN2 8    // Right Motor –
+#define IN3 9    // Left Motor  +
+#define IN4 10   // Left Motor –
+
+// ---- Variables ----
+long duration;
+int distance;
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(IR_RIGHT, INPUT);
+  pinMode(IR_LEFT, INPUT);
+
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+
+  pinMode(ENA, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  stopMotor();
+}
+
+// =============================
+// Ultrasonic Read Distance
+// =============================
+int getDistance() {
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+
+  duration = pulseIn(ECHO, HIGH, 25000); // 25ms timeout
+  int dist = duration * 0.034 / 2;
+
+  if (duration == 0) return 999; // no reading
+
+  return dist;
+}
+
+// =============================
+// Motor Controls
+// =============================
+void forward() {
+  analogWrite(ENA, 180);  
+  analogWrite(ENB, 180);
+
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void turnRight() {
+  analogWrite(ENA, 160); 
+  analogWrite(ENB, 160);
+
+  digitalWrite(IN1, LOW);  // stop right motor
+  digitalWrite(IN2, LOW);
+
+  digitalWrite(IN3, HIGH); // left motor forward
+  digitalWrite(IN4, LOW);
+}
+
+void turnLeft() {
+  analogWrite(ENA, 160);
+  analogWrite(ENB, 160);
+
+  digitalWrite(IN1, HIGH); // right motor forward
+  digitalWrite(IN2, LOW);
+
+  digitalWrite(IN3, LOW);  // stop left motor
+  digitalWrite(IN4, LOW);
+}
+
+void stopMotor() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
+}
+
+// =============================
+// MAIN LOOP
+// =============================
+void loop() {
+  int irR = digitalRead(IR_RIGHT);
+  int irL = digitalRead(IR_LEFT);
+
+  distance = getDistance();
+
+  Serial.print("Distance: ");
+  Serial.println(distance);
+  Serial.print("IR R: ");
+  Serial.print(irR);
+  Serial.print(" | IR L: ");
+  Serial.println(irL);
+
+  // ---- Person Not Found ----
+  if (distance > 200) {
+    Serial.println("NO PERSON — STOP");
+    stopMotor();
+    return;
+  }
+
+  // ---- Person Close <90cm ----
+  if (distance < 90) {
+
+    // BOTH sensors detect target
+    if (irL == 0 && irR == 0) {
+      Serial.println("FORWARD");
+      forward();
+    }
+
+    // Only LEFT sensor detects → turn left
+    else if (irL == 0 && irR == 1) {
+      Serial.println("TURN LEFT");
+      turnLeft();
+    }
+
+    // Only RIGHT sensor detects → turn right
+    else if (irL == 1 && irR == 0) {
+      Serial.println("TURN RIGHT");
+      turnRight();
+    }
+
+    // None detect → lost
+    else {
+      Serial.println("LOST — STOP");
+      stopMotor();
+    }
+  }
+}
